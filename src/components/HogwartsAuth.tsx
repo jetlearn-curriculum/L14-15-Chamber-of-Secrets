@@ -1,9 +1,15 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { auth, db } from "../lib/firebase";
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  setPersistence, 
+  browserSessionPersistence, 
+  inMemoryPersistence 
+} from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
-import { Sparkles, Wand, User, AlertCircle, GraduationCap, Copy, Check, ExternalLink, Shield } from "lucide-react";
+import { Sparkles, Wand, User, AlertCircle, GraduationCap, Copy, Check, Shield } from "lucide-react";
 import { audio } from "../utils/audio";
 
 interface HogwartsAuthProps {
@@ -104,10 +110,35 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
     audio.playQuillScratch(200);
 
     try {
+      // Set persistence to avoid IndexedDB iframe restrictions
+      try {
+        await setPersistence(auth, browserSessionPersistence);
+      } catch (p1) {
+        try {
+          await setPersistence(auth, inMemoryPersistence);
+        } catch (p2) {
+          console.warn("Could not set custom auth persistence:", p2);
+        }
+      }
+
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
 
-      const userCredential = await signInWithPopup(auth, provider);
+      let userCredential;
+      try {
+        userCredential = await signInWithPopup(auth, provider);
+      } catch (firstErr: any) {
+        const msg = (firstErr?.message || "").toLowerCase();
+        // If storage / IndexedDB was closing or blocked in iframe, switch to in-memory persistence and retry popup immediately
+        if (msg.includes("closing") || msg.includes("hidden") || msg.includes("database") || firstErr?.code === "auth/internal-error" || firstErr?.code === "auth/argument-error") {
+          console.warn("Retrying sign-in with in-memory auth persistence due to iframe storage restrictions...", firstErr);
+          await setPersistence(auth, inMemoryPersistence);
+          userCredential = await signInWithPopup(auth, provider);
+        } else {
+          throw firstErr;
+        }
+      }
+
       const user = userCredential.user;
 
       // Check if user has an existing Hogwarts profile in Firestore
@@ -145,7 +176,11 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
       } else if (code === "auth/popup-closed-by-user") {
         setError("The authentication portal was closed before logging in.");
       } else if (lowerMsg.includes("closing") || lowerMsg.includes("hidden") || lowerMsg.includes("database")) {
-        setError("Storage connection was briefly interrupted. Please click 'Enter via Google Portal' to retry.");
+        // Fallback retry attempt if user clicks again
+        try {
+          await setPersistence(auth, inMemoryPersistence);
+        } catch (_) {}
+        setError("Sign-in session reset. Please click 'ENTER VIA GOOGLE PORTAL' again.");
       } else {
         setError(`[${code || 'auth/error'}] ${err.message || 'Google Sign-In encountered an error.'}`);
       }

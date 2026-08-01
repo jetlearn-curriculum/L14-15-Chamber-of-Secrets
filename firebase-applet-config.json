@@ -1,11 +1,10 @@
 {
-  "projectId": "scientific-lambda-v09p9",
-  "appId": "1:73980637939:web:702fa51495f198afdf7d86",
-  "apiKey": "AIzaSyCc1gGuPorPE5KRyMpqbThhu02pAGKgESM",
-  "authDomain": "scientific-lambda-v09p9.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-tomriddlesdiary-f351b1a6-c0ab-4270-8d62-d1b2b0b3fa6a",
-  "storageBucket": "scientific-lambda-v09p9.firebasestorage.app",
-  "messagingSenderId": "73980637939",
-  "measurementId": "",
-  "oAuthClientId": "73980637939-1ook9n74nhocj1r21ilv4dj7u7rp4ksa.apps.googleusercontent.com"
+  "projectId": "chamber-of-secrets-71f18",
+  "appId": "1:292928292438:web:ec24314c07aaebe31f1df7",
+  "apiKey": "AIzaSyDl15IJzIJ7Kbgbt67hz2sfO6UIla7V2Ac",
+  "authDomain": "chamber-of-secrets-71f18.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "chamber-of-secrets-71f18.firebasestorage.app",
+  "messagingSenderId": "292928292438",
+  "measurementId": "G-9DFY0FV8S4"
 }

@@ -99,28 +99,64 @@ export default function Desk() {
       if (currentUser) {
         setUser(currentUser);
         try {
+          // Attempt Firestore read for authenticated user
           const userDoc = await getDoc(doc(db, "users", currentUser.uid));
           if (userDoc.exists()) {
             setUserProfile(userDoc.data());
           } else {
+            const savedProfile = localStorage.getItem("hogwarts_user_profile_" + currentUser.uid);
+            if (savedProfile) {
+              setUserProfile(JSON.parse(savedProfile));
+            } else {
+              setUserProfile({
+                uid: currentUser.uid,
+                name: currentUser.displayName || currentUser.email?.split("@")[0] || "Unknown Wizard",
+                house: "Gryffindor",
+                wand: "Dragon Heartstring, 11 inch",
+                bloodStatus: "Half-Blood",
+                year: "Fifth Year",
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("Firestore profile fetch skipped or unauthorized, using local fallback:", e);
+          try {
+            const savedProfile = localStorage.getItem("hogwarts_user_profile_" + currentUser.uid);
+            if (savedProfile) {
+              setUserProfile(JSON.parse(savedProfile));
+            } else {
+              setUserProfile({
+                uid: currentUser.uid,
+                name: currentUser.displayName || currentUser.email?.split("@")[0] || "Unknown Wizard",
+                house: "Gryffindor",
+                wand: "Dragon Heartstring, 11 inch",
+                bloodStatus: "Half-Blood",
+                year: "Fifth Year",
+              });
+            }
+          } catch (localErr) {
             setUserProfile({
               uid: currentUser.uid,
-              name: currentUser.email?.split("@")[0] || "Unknown Wizard",
-              house: "None",
-              wand: "Unknown Wand",
-              bloodStatus: "Unknown",
+              name: currentUser.displayName || "Unknown Wizard",
+              house: "Gryffindor",
+              wand: "Dragon Heartstring, 11 inch",
+              bloodStatus: "Half-Blood",
               year: "Fifth Year",
             });
           }
-        } catch (e) {
-          console.error("Error fetching user profile:", e);
         }
       } else {
-        setUser(null);
-        setUserProfile(null);
-        setEntries([]);
-        setLoreScrolls([]);
-        setTrackedSecrets([]);
+        // Keep active guest user profile if set manually
+        setUser((prevUser: any) => {
+          if (prevUser && (prevUser.isGuest || prevUser.uid?.startsWith("guest-"))) {
+            return prevUser;
+          }
+          return null;
+        });
+        setUserProfile((prevProfile: any) => {
+          if (prevProfile) return prevProfile;
+          return null;
+        });
       }
       setLoadingAuth(false);
     });
@@ -128,58 +164,88 @@ export default function Desk() {
     return () => unsubscribeAuth();
   }, []);
 
-  // Real-time Firestore subscriptions for active authenticated user
+  // Real-time Firestore subscriptions for active authenticated user (with local storage fallback)
   useEffect(() => {
     if (!user) return;
 
-    // Listen to user-specific entries (sorted client-side to avoid index-creation requirements)
-    const entriesQuery = query(
-      collection(db, "entries"),
-      where("userId", "==", user.uid)
-    );
-    const unsubscribeEntries = onSnapshot(entriesQuery, (snapshot) => {
-      const loadedEntries: DiaryEntry[] = [];
-      snapshot.forEach((doc) => {
-        loadedEntries.push(doc.data() as DiaryEntry);
-      });
-      loadedEntries.sort((a, b) => b.timestamp - a.timestamp);
-      setEntries(loadedEntries);
-    }, (err) => {
-      console.error("Entries snapshot error:", err);
-    });
+    // Load local storage fallback initially or for guest users
+    const localEntriesKey = "hogwarts_entries_" + user.uid;
+    const localLoreKey = "hogwarts_lore_" + user.uid;
+    const localSecretsKey = "hogwarts_secrets_" + user.uid;
 
-    // Listen to user-specific unlocked lore Scrolls
-    const loreQuery = query(
-      collection(db, "loreScrolls"),
-      where("userId", "==", user.uid)
-    );
-    const unsubscribeLore = onSnapshot(loreQuery, (snapshot) => {
-      const loadedLore: LoreScroll[] = [];
-      snapshot.forEach((doc) => {
-        loadedLore.push(doc.data() as LoreScroll);
-      });
-      loadedLore.sort((a, b) => a.entryCount - b.entryCount);
-      setLoreScrolls(loadedLore);
-    }, (err) => {
-      console.error("Lore snapshot error:", err);
-    });
+    try {
+      const savedE = localStorage.getItem(localEntriesKey);
+      if (savedE) setEntries(JSON.parse(savedE));
+      const savedL = localStorage.getItem(localLoreKey);
+      if (savedL) setLoreScrolls(JSON.parse(savedL));
+      const savedS = localStorage.getItem(localSecretsKey);
+      if (savedS) setTrackedSecrets(JSON.parse(savedS));
+    } catch (e) {
+      console.warn("Error reading local storage cache:", e);
+    }
 
-    // Listen to user-specific tracked secrets
-    const secretsQuery = query(
-      collection(db, "trackedSecrets"),
-      where("userId", "==", user.uid)
-    );
-    const unsubscribeSecrets = onSnapshot(secretsQuery, (snapshot) => {
-      const loadedSecrets: { text: string; timestamp: number }[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        loadedSecrets.push({ text: data.text, timestamp: data.timestamp || 0 });
+    if (user.isGuest || user.uid.startsWith("guest-")) {
+      return; // Guest user relies strictly on local storage
+    }
+
+    // Listen to user-specific entries (sorted client-side)
+    let unsubscribeEntries = () => {};
+    let unsubscribeLore = () => {};
+    let unsubscribeSecrets = () => {};
+
+    try {
+      const entriesQuery = query(
+        collection(db, "entries"),
+        where("userId", "==", user.uid)
+      );
+      unsubscribeEntries = onSnapshot(entriesQuery, (snapshot) => {
+        const loadedEntries: DiaryEntry[] = [];
+        snapshot.forEach((doc) => {
+          loadedEntries.push(doc.data() as DiaryEntry);
+        });
+        loadedEntries.sort((a, b) => b.timestamp - a.timestamp);
+        setEntries(loadedEntries);
+        localStorage.setItem(localEntriesKey, JSON.stringify(loadedEntries));
+      }, (err) => {
+        console.warn("Entries snapshot warning (using local fallback):", err);
       });
-      loadedSecrets.sort((a, b) => b.timestamp - a.timestamp);
-      setTrackedSecrets(loadedSecrets.map(s => s.text));
-    }, (err) => {
-      console.error("Secrets snapshot error:", err);
-    });
+
+      const loreQuery = query(
+        collection(db, "loreScrolls"),
+        where("userId", "==", user.uid)
+      );
+      unsubscribeLore = onSnapshot(loreQuery, (snapshot) => {
+        const loadedLore: LoreScroll[] = [];
+        snapshot.forEach((doc) => {
+          loadedLore.push(doc.data() as LoreScroll);
+        });
+        loadedLore.sort((a, b) => a.entryCount - b.entryCount);
+        setLoreScrolls(loadedLore);
+        localStorage.setItem(localLoreKey, JSON.stringify(loadedLore));
+      }, (err) => {
+        console.warn("Lore snapshot warning (using local fallback):", err);
+      });
+
+      const secretsQuery = query(
+        collection(db, "trackedSecrets"),
+        where("userId", "==", user.uid)
+      );
+      unsubscribeSecrets = onSnapshot(secretsQuery, (snapshot) => {
+        const loadedSecrets: { text: string; timestamp: number }[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          loadedSecrets.push({ text: data.text, timestamp: data.timestamp || 0 });
+        });
+        loadedSecrets.sort((a, b) => b.timestamp - a.timestamp);
+        const secretTexts = loadedSecrets.map(s => s.text);
+        setTrackedSecrets(secretTexts);
+        localStorage.setItem(localSecretsKey, JSON.stringify(secretTexts));
+      }, (err) => {
+        console.warn("Secrets snapshot warning (using local fallback):", err);
+      });
+    } catch (fErr) {
+      console.warn("Firestore subscription error, using local state:", fErr);
+    }
 
     return () => {
       unsubscribeEntries();
@@ -190,57 +256,93 @@ export default function Desk() {
 
   const handleTrackSecret = async (secretText: string) => {
     if (!user || !secretText.trim()) return;
+    if (trackedSecrets.includes(secretText)) return;
+
+    const updatedSecrets = [secretText, ...trackedSecrets];
+    setTrackedSecrets(updatedSecrets);
     try {
-      if (trackedSecrets.includes(secretText)) return;
-      const secretRef = doc(collection(db, "trackedSecrets"));
-      await setDoc(secretRef, {
-        text: secretText,
-        userId: user.uid,
-        id: secretRef.id,
-        timestamp: Date.now()
-      });
-    } catch (err) {
-      console.error("Failed to track secret:", err);
+      localStorage.setItem("hogwarts_secrets_" + user.uid, JSON.stringify(updatedSecrets));
+    } catch (e) {}
+
+    if (!user.isGuest && !user.uid.startsWith("guest-")) {
+      try {
+        const secretRef = doc(collection(db, "trackedSecrets"));
+        await setDoc(secretRef, {
+          text: secretText,
+          userId: user.uid,
+          id: secretRef.id,
+          timestamp: Date.now()
+        });
+      } catch (err) {
+        console.warn("Failed to track secret in Firestore (saved locally):", err);
+      }
     }
   };
 
   const handleAddEntry = async (newEntry: DiaryEntry) => {
     if (!user) return;
+    
+    // Always update local state & localStorage immediately
+    const entryWithId = {
+      ...newEntry,
+      userId: user.uid,
+      id: newEntry.id || "entry-" + Date.now()
+    };
+    const updatedEntries = [entryWithId, ...entries.filter(e => e.id !== entryWithId.id)];
+    setEntries(updatedEntries);
     try {
-      const entryRef = doc(collection(db, "entries"));
-      await setDoc(entryRef, {
-        ...newEntry,
-        userId: user.uid,
-        id: entryRef.id,
-      });
+      localStorage.setItem("hogwarts_entries_" + user.uid, JSON.stringify(updatedEntries));
+    } catch (e) {}
 
-      // Auto detect secret
-      const secretKeywords = [
-        "secret", "hide", "ashamed", "confess", "afraid", "truth", "private", "murder", "stole", "fear", "hate", "lied", "regret", "guilt", "shame", "sorrow", "lonely", "darkness", "forbidden", "power", "chamber", "slytherin", "voldemort", "death", "kill", "blood"
-      ];
-      const normalizedText = newEntry.text.toLowerCase();
-      const isKeywordSecret = secretKeywords.some(keyword => normalizedText.includes(keyword));
-      const isReflectionSecret = ["Secret", "Sorrow", "Loneliness", "Power", "Corruption", "Devotion", "Ambition", "Suspicion"].includes(newEntry.reflection);
+    // Auto detect secret
+    const secretKeywords = [
+      "secret", "hide", "ashamed", "confess", "afraid", "truth", "private", "murder", "stole", "fear", "hate", "lied", "regret", "guilt", "shame", "sorrow", "lonely", "darkness", "forbidden", "power", "chamber", "slytherin", "voldemort", "death", "kill", "blood"
+    ];
+    const normalizedText = newEntry.text.toLowerCase();
+    const isKeywordSecret = secretKeywords.some(keyword => normalizedText.includes(keyword));
+    const isReflectionSecret = ["Secret", "Sorrow", "Loneliness", "Power", "Corruption", "Devotion", "Ambition", "Suspicion"].includes(newEntry.reflection);
 
-      if (isKeywordSecret || isReflectionSecret) {
-        await handleTrackSecret(newEntry.text);
+    if (isKeywordSecret || isReflectionSecret) {
+      await handleTrackSecret(newEntry.text);
+    }
+
+    if (!user.isGuest && !user.uid.startsWith("guest-")) {
+      try {
+        const entryRef = doc(collection(db, "entries"));
+        await setDoc(entryRef, {
+          ...entryWithId,
+          id: entryRef.id,
+        });
+      } catch (err) {
+        console.warn("Failed to save entry to Firestore (saved locally):", err);
       }
-    } catch (err) {
-      console.error("Failed to add entry:", err);
     }
   };
 
   const handleAddLore = async (newLore: LoreScroll) => {
     if (!user) return;
+
+    const loreWithId = {
+      ...newLore,
+      userId: user.uid,
+      id: newLore.id || "lore-" + Date.now()
+    };
+    const updatedLore = [...loreScrolls.filter(l => l.id !== loreWithId.id), loreWithId];
+    setLoreScrolls(updatedLore);
     try {
-      const loreRef = doc(collection(db, "loreScrolls"));
-      await setDoc(loreRef, {
-        ...newLore,
-        userId: user.uid,
-        id: loreRef.id,
-      });
-    } catch (err) {
-      console.error("Failed to add lore scroll:", err);
+      localStorage.setItem("hogwarts_lore_" + user.uid, JSON.stringify(updatedLore));
+    } catch (e) {}
+
+    if (!user.isGuest && !user.uid.startsWith("guest-")) {
+      try {
+        const loreRef = doc(collection(db, "loreScrolls"));
+        await setDoc(loreRef, {
+          ...loreWithId,
+          id: loreRef.id,
+        });
+      } catch (err) {
+        console.warn("Failed to add lore scroll to Firestore (saved locally):", err);
+      }
     }
   };
 

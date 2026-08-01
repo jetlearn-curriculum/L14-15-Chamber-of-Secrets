@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { auth, db } from "../lib/firebase";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
-import { Sparkles, Wand, User, AlertCircle, GraduationCap } from "lucide-react";
+import { Sparkles, Wand, User, AlertCircle, GraduationCap, Copy, Check, ExternalLink, Shield } from "lucide-react";
 import { audio } from "../utils/audio";
 
 interface HogwartsAuthProps {
@@ -24,6 +24,8 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isUnauthorizedDomain, setIsUnauthorizedDomain] = useState(false);
+  const [copiedDomain, setCopiedDomain] = useState(false);
 
   const houses = [
     {
@@ -60,9 +62,31 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
     }
   ];
 
+  const handleCopyDomain = () => {
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(window.location.hostname);
+      setCopiedDomain(true);
+      setTimeout(() => setCopiedDomain(false), 2500);
+    }
+  };
+
+  const handleGuestSignIn = () => {
+    audio.playQuillScratch(200);
+    const guestUser = {
+      uid: "guest-" + Date.now(),
+      displayName: "Guest Wizard",
+      isGuest: true
+    };
+    setName("Guest Wizard");
+    setSortingUser(guestUser);
+    setIsSortingCeremony(true);
+    audio.playPageTurn();
+  };
+
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setError("");
+    setIsUnauthorizedDomain(false);
     audio.playQuillScratch(200);
 
     try {
@@ -71,24 +95,33 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
       const user = userCredential.user;
 
       // Check if user has an existing Hogwarts profile in Firestore
-      const userDocRef = doc(db, "users", user.uid);
-      const userDoc = await getDoc(userDocRef);
+      try {
+        const userDocRef = doc(db, "users", user.uid);
+        const userDoc = await getDoc(userDocRef);
 
-      if (userDoc.exists()) {
-        const profilePayload = userDoc.data();
-        onAuthSuccess(user, profilePayload);
-        audio.playChime();
-      } else {
-        // First-time wizard! Trigger sorting ceremony step to gather profile information
-        setName(user.displayName || "Unknown Wizard");
-        setSortingUser(user);
-        setIsSortingCeremony(true);
-        audio.playPageTurn();
+        if (userDoc.exists()) {
+          const profilePayload = userDoc.data();
+          onAuthSuccess(user, profilePayload);
+          audio.playChime();
+          return;
+        }
+      } catch (dbErr) {
+        console.warn("Could not read Firestore user profile:", dbErr);
       }
+
+      // First-time wizard! Trigger sorting ceremony step to gather profile information
+      setName(user.displayName || "Unknown Wizard");
+      setSortingUser(user);
+      setIsSortingCeremony(true);
+      audio.playPageTurn();
     } catch (err: any) {
       console.error("Google Auth Failure:", err);
       let errMsg = err.message || "An ancient spell blocked your entry.";
-      if (err.code === "auth/popup-blocked") {
+      
+      if (err.code === "auth/unauthorized-domain" || err.message?.includes("unauthorized-domain") || err.message?.includes("unauthorized domain")) {
+        setIsUnauthorizedDomain(true);
+        errMsg = `Unauthorized Domain: ${window.location.hostname} is not registered in Firebase Authentication's Authorized Domains list.`;
+      } else if (err.code === "auth/popup-blocked") {
         errMsg = "The Floo Network portal popup was blocked by your browser. Please allow popups to enter Hogwarts.";
       } else if (err.code === "auth/popup-closed-by-user") {
         errMsg = "You closed the portal before completing your authentication.";
@@ -122,7 +155,15 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
         createdAt: Date.now()
       };
 
-      await setDoc(doc(db, "users", sortingUser.uid), profilePayload);
+      if (!sortingUser.isGuest) {
+        try {
+          await setDoc(doc(db, "users", sortingUser.uid), profilePayload);
+        } catch (dbErr) {
+          console.warn("Firestore write skipped/failed, proceeding locally:", dbErr);
+        }
+      }
+
+      localStorage.setItem("hogwarts_user_profile_" + sortingUser.uid, JSON.stringify(profilePayload));
       onAuthSuccess(sortingUser, profilePayload);
       audio.playChime();
     } catch (err: any) {
@@ -335,8 +376,59 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
               </motion.h1>
             </div>
  
-            {/* Error message */}
-            {error && (
+            {/* Error or Unauthorized Domain Guidance Box */}
+            {isUnauthorizedDomain ? (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full max-w-sm mb-5 p-4 bg-[#1e100a] border-2 border-amber-800/60 rounded-lg text-left text-xs text-amber-100/90 leading-relaxed font-serif shadow-2xl shadow-black relative"
+              >
+                <div className="flex items-center gap-2 mb-2 text-amber-400 font-bold uppercase tracking-wider font-mono text-[11px]">
+                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span>Firebase Authorized Domain Required</span>
+                </div>
+                
+                <p className="mb-2 text-[11px] text-stone-300">
+                  Firebase Authentication requires your current preview URL domain to be explicitly whitelisted in your Firebase Console.
+                </p>
+
+                <div className="my-2.5 p-2 bg-stone-950/80 border border-amber-900/40 rounded flex items-center justify-between gap-2 font-mono text-[10px] text-amber-200">
+                  <span className="truncate select-all">{typeof window !== "undefined" ? window.location.hostname : "preview-domain"}</span>
+                  <button
+                    type="button"
+                    onClick={handleCopyDomain}
+                    className="px-2 py-1 bg-amber-950 hover:bg-amber-900 border border-amber-800/60 rounded text-[9px] uppercase tracking-wider text-amber-300 transition-colors flex items-center gap-1 shrink-0"
+                  >
+                    {copiedDomain ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-400" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3 text-amber-400" />
+                        Copy Domain
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="space-y-1 text-[10px] text-stone-400 mb-3 italic">
+                  <p>1. Open <strong>Firebase Console</strong> → <strong>Authentication</strong> → <strong>Settings</strong>.</p>
+                  <p>2. Under <strong>Authorized domains</strong>, click <strong>Add domain</strong>.</p>
+                  <p>3. Paste your domain above and save.</p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleGuestSignIn}
+                  className="w-full py-2 bg-amber-900/80 hover:bg-amber-800 text-amber-100 font-mono text-[10px] uppercase tracking-widest rounded border border-amber-600/40 transition-colors flex items-center justify-center gap-1.5 shadow"
+                >
+                  <Wand className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Enter as Guest Wizard Now</span>
+                </button>
+              </motion.div>
+            ) : error ? (
               <motion.div 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -344,14 +436,14 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
               >
                 {error}
               </motion.div>
-            )}
- 
+            ) : null}
+
             {/* Main CTA: Immersive Google login styled as a beautiful magic crest button */}
             <motion.div 
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 1.4, delay: 0.9, ease: "easeOut" }}
-              className="w-full max-w-[320px] flex flex-col items-center mt-2"
+              className="w-full max-w-[320px] flex flex-col items-center mt-2 space-y-3"
             >
               <motion.button
                 type="button"
@@ -391,8 +483,17 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
                   </>
                 )}
               </motion.button>
+
+              <button
+                type="button"
+                onClick={handleGuestSignIn}
+                className="w-full py-2.5 bg-stone-950/80 hover:bg-amber-950/60 text-stone-300 hover:text-amber-200 font-mono text-[10px] uppercase tracking-widest rounded-lg border border-stone-800 hover:border-amber-800/50 transition-all flex items-center justify-center gap-2 shadow"
+              >
+                <Wand className="w-3.5 h-3.5 text-amber-500" />
+                <span>Enter as Guest Wizard</span>
+              </button>
               
-              <p className="text-[10px] text-stone-400 font-mono tracking-wider text-center mt-5 uppercase max-w-[280px] leading-relaxed opacity-80 select-none">
+              <p className="text-[10px] text-stone-400 font-mono tracking-wider text-center mt-3 uppercase max-w-[280px] leading-relaxed opacity-80 select-none">
                 Authenticates via the secure Floo Network to protect your sacred journal entries.
               </p>
             </motion.div>

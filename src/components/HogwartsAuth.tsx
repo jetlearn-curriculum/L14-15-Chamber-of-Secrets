@@ -25,7 +25,29 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [isUnauthorizedDomain, setIsUnauthorizedDomain] = useState(false);
-  const [copiedDomain, setCopiedDomain] = useState(false);
+  const [copiedDomain1, setCopiedDomain1] = useState(false);
+  const [copiedDomain2, setCopiedDomain2] = useState(false);
+
+  const currentHost = typeof window !== "undefined" ? window.location.hostname : "";
+  let parentHost = "";
+  if (typeof window !== "undefined" && document.referrer) {
+    try {
+      parentHost = new URL(document.referrer).hostname;
+    } catch (e) {}
+  }
+
+  const handleCopyHost = (host: string, isSecond: boolean) => {
+    if (typeof window !== "undefined" && host) {
+      navigator.clipboard.writeText(host);
+      if (isSecond) {
+        setCopiedDomain2(true);
+        setTimeout(() => setCopiedDomain2(false), 2500);
+      } else {
+        setCopiedDomain1(true);
+        setTimeout(() => setCopiedDomain1(false), 2500);
+      }
+    }
+  };
 
   const houses = [
     {
@@ -61,14 +83,6 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
       motto: "Loyalty & Patience"
     }
   ];
-
-  const handleCopyDomain = () => {
-    if (typeof window !== "undefined") {
-      navigator.clipboard.writeText(window.location.hostname);
-      setCopiedDomain(true);
-      setTimeout(() => setCopiedDomain(false), 2500);
-    }
-  };
 
   const handleGuestSignIn = () => {
     audio.playQuillScratch(200);
@@ -116,20 +130,21 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
       audio.playPageTurn();
     } catch (err: any) {
       console.error("Google Auth Failure:", err);
-      let errMsg = err.message || "An ancient spell blocked your entry.";
       const lowerMsg = (err.message || "").toLowerCase();
+      const code = err.code || "";
       
-      if (err.code === "auth/unauthorized-domain" || lowerMsg.includes("unauthorized-domain") || lowerMsg.includes("unauthorized domain")) {
+      if (code === "auth/unauthorized-domain" || lowerMsg.includes("unauthorized-domain") || lowerMsg.includes("unauthorized domain")) {
         setIsUnauthorizedDomain(true);
-        errMsg = `Unauthorized Domain: ${window.location.hostname} is not registered in Firebase Authentication's Authorized Domains list.`;
-      } else if (lowerMsg.includes("closing") || lowerMsg.includes("hidden") || lowerMsg.includes("database") || err.code === "auth/internal-error" || err.code === "auth/operation-not-allowed") {
-        errMsg = "Firebase Authentication or Database service is currently offline or unconfigured in this Firebase project. You can click 'ENTER AS GUEST WIZARD' below to explore Tom Riddle's Diary freely.";
-      } else if (err.code === "auth/popup-blocked") {
-        errMsg = "The Floo Network portal popup was blocked by your browser. Please allow popups to enter Hogwarts.";
-      } else if (err.code === "auth/popup-closed-by-user") {
-        errMsg = "You closed the portal before completing your authentication.";
+        setError(`Domain "${currentHost}" is not listed in Firebase Authentication Authorized Domains.`);
+      } else if (code === "auth/operation-not-allowed") {
+        setError("Google Sign-In is currently disabled in your Firebase project. Please enable Google under Firebase Console → Authentication → Sign-in method.");
+      } else if (code === "auth/popup-blocked") {
+        setError("The login portal popup was blocked by your browser. Please allow popups for this page.");
+      } else if (code === "auth/popup-closed-by-user") {
+        setError("The authentication portal was closed before logging in.");
+      } else {
+        setError(`[${code || 'auth/error'}] ${err.message || 'Google Sign-In encountered an error.'}`);
       }
-      setError(errMsg);
     } finally {
       setLoading(false);
     }
@@ -391,18 +406,19 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
                   <span>Firebase Authorized Domain Required</span>
                 </div>
                 
-                <p className="mb-2 text-[11px] text-stone-300">
-                  Firebase Authentication requires your current preview URL domain to be explicitly whitelisted in your Firebase Console.
+                <p className="mb-2 text-[11px] text-stone-300 font-sans">
+                  Firebase requires your active host domains to be whitelisted under <strong>Authentication → Settings → Authorized domains</strong> in Firebase Console.
                 </p>
 
-                <div className="my-2.5 p-2 bg-stone-950/80 border border-amber-900/40 rounded flex items-center justify-between gap-2 font-mono text-[10px] text-amber-200">
-                  <span className="truncate select-all">{typeof window !== "undefined" ? window.location.hostname : "preview-domain"}</span>
+                {/* Main app domain */}
+                <div className="my-2 p-2 bg-stone-950/80 border border-amber-900/40 rounded flex items-center justify-between gap-2 font-mono text-[10px] text-amber-200">
+                  <span className="truncate select-all">{currentHost || "preview-domain"}</span>
                   <button
                     type="button"
-                    onClick={handleCopyDomain}
+                    onClick={() => handleCopyHost(currentHost, false)}
                     className="px-2 py-1 bg-amber-950 hover:bg-amber-900 border border-amber-800/60 rounded text-[9px] uppercase tracking-wider text-amber-300 transition-colors flex items-center gap-1 shrink-0"
                   >
-                    {copiedDomain ? (
+                    {copiedDomain1 ? (
                       <>
                         <Check className="w-3 h-3 text-emerald-400" />
                         Copied
@@ -410,16 +426,40 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
                     ) : (
                       <>
                         <Copy className="w-3 h-3 text-amber-400" />
-                        Copy Domain
+                        Copy App Host
                       </>
                     )}
                   </button>
                 </div>
 
-                <div className="space-y-1 text-[10px] text-stone-400 mb-3 italic">
-                  <p>1. Open <strong>Firebase Console</strong> → <strong>Authentication</strong> → <strong>Settings</strong>.</p>
-                  <p>2. Under <strong>Authorized domains</strong>, click <strong>Add domain</strong>.</p>
-                  <p>3. Paste your domain above and save.</p>
+                {/* Parent iframe domain if different */}
+                {parentHost && parentHost !== currentHost && (
+                  <div className="my-2 p-2 bg-stone-950/80 border border-amber-900/40 rounded flex items-center justify-between gap-2 font-mono text-[10px] text-amber-200">
+                    <span className="truncate select-all">{parentHost}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyHost(parentHost, true)}
+                      className="px-2 py-1 bg-amber-950 hover:bg-amber-900 border border-amber-800/60 rounded text-[9px] uppercase tracking-wider text-amber-300 transition-colors flex items-center gap-1 shrink-0"
+                    >
+                      {copiedDomain2 ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3 text-amber-400" />
+                          Copy Frame Host
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                <div className="space-y-1 text-[10px] text-stone-400 mb-3 italic font-sans">
+                  <p>1. Open <strong>Firebase Console</strong> → <strong>Authentication</strong> → <strong>Settings</strong> → <strong>Authorized domains</strong>.</p>
+                  <p>2. Click <strong>Add domain</strong> and paste the domain(s) above.</p>
+                  <p>3. Go to <strong>Sign-in method</strong> → Ensure <strong>Google</strong> is enabled.</p>
                 </div>
 
                 <button
@@ -439,7 +479,7 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
               >
                 <div className="flex items-center gap-2 mb-1.5 text-amber-400 font-bold uppercase tracking-wider font-mono text-[11px]">
                   <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span>Authentication Notice</span>
+                  <span>Authentication Status</span>
                 </div>
                 <p className="mb-3 text-[11px] text-stone-300 leading-relaxed font-sans">
                   {error}

@@ -117,10 +117,13 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
     } catch (err: any) {
       console.error("Google Auth Failure:", err);
       let errMsg = err.message || "An ancient spell blocked your entry.";
+      const lowerMsg = (err.message || "").toLowerCase();
       
-      if (err.code === "auth/unauthorized-domain" || err.message?.includes("unauthorized-domain") || err.message?.includes("unauthorized domain")) {
+      if (err.code === "auth/unauthorized-domain" || lowerMsg.includes("unauthorized-domain") || lowerMsg.includes("unauthorized domain")) {
         setIsUnauthorizedDomain(true);
         errMsg = `Unauthorized Domain: ${window.location.hostname} is not registered in Firebase Authentication's Authorized Domains list.`;
+      } else if (lowerMsg.includes("closing") || lowerMsg.includes("hidden") || lowerMsg.includes("database") || err.code === "auth/internal-error" || err.code === "auth/operation-not-allowed") {
+        errMsg = "Firebase Authentication or Database service is currently offline or unconfigured in this Firebase project. You can click 'ENTER AS GUEST WIZARD' below to explore Tom Riddle's Diary freely.";
       } else if (err.code === "auth/popup-blocked") {
         errMsg = "The Floo Network portal popup was blocked by your browser. Please allow popups to enter Hogwarts.";
       } else if (err.code === "auth/popup-closed-by-user") {
@@ -432,9 +435,23 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
               <motion.div 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="w-full max-w-[320px] mb-4 p-2.5 bg-red-950/60 border border-red-800/40 rounded text-center text-xs text-red-200 leading-relaxed font-serif italic shadow-md"
+                className="w-full max-w-sm mb-5 p-3.5 bg-[#1a0f0a] border border-amber-800/50 rounded-lg text-left text-xs text-amber-200/90 leading-relaxed font-serif shadow-xl relative"
               >
-                {error}
+                <div className="flex items-center gap-2 mb-1.5 text-amber-400 font-bold uppercase tracking-wider font-mono text-[11px]">
+                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span>Authentication Notice</span>
+                </div>
+                <p className="mb-3 text-[11px] text-stone-300 leading-relaxed font-sans">
+                  {error}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleGuestSignIn}
+                  className="w-full py-1.5 bg-amber-900/80 hover:bg-amber-800 text-amber-100 font-mono text-[10px] uppercase tracking-widest rounded border border-amber-600/40 transition-colors flex items-center justify-center gap-1.5 shadow"
+                >
+                  <Wand className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Continue as Guest Wizard</span>
+                </button>
               </motion.div>
             ) : null}
 

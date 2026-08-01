@@ -145,7 +145,7 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
       } else if (code === "auth/popup-closed-by-user") {
         setError("The authentication portal was closed before logging in.");
       } else if (lowerMsg.includes("closing") || lowerMsg.includes("hidden") || lowerMsg.includes("database")) {
-        setError("Browser storage connection was reset. Please click 'ENTER VIA GOOGLE PORTAL' again to sign in, or click 'ENTER AS GUEST WIZARD'.");
+        setError("Browser storage in this preview frame was restricted. Click 'Open in New Tab for Google Auth' below to log in directly in a full window, or 'Continue as Guest Wizard'.");
       } else {
         setError(`[${code || 'auth/error'}] ${err.message || 'Google Sign-In encountered an error.'}`);
       }
@@ -488,14 +488,26 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
                 <p className="mb-3 text-[11px] text-stone-300 leading-relaxed font-sans">
                   {error}
                 </p>
-                <button
-                  type="button"
-                  onClick={handleGuestSignIn}
-                  className="w-full py-1.5 bg-amber-900/80 hover:bg-amber-800 text-amber-100 font-mono text-[10px] uppercase tracking-widest rounded border border-amber-600/40 transition-colors flex items-center justify-center gap-1.5 shadow"
-                >
-                  <Wand className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Continue as Guest Wizard</span>
-                </button>
+                
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => window.open(window.location.href, "_blank")}
+                    className="w-full py-1.5 bg-amber-950/90 hover:bg-amber-900 text-amber-200 font-mono text-[10px] uppercase tracking-widest rounded border border-amber-700/60 transition-colors flex items-center justify-center gap-1.5 shadow"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Open in New Tab for Google Auth</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleGuestSignIn}
+                    className="w-full py-1.5 bg-amber-900/80 hover:bg-amber-800 text-amber-100 font-mono text-[10px] uppercase tracking-widest rounded border border-amber-600/40 transition-colors flex items-center justify-center gap-1.5 shadow"
+                  >
+                    <Wand className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Continue as Guest Wizard</span>
+                  </button>
+                </div>
               </motion.div>
             ) : null}
 

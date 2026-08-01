@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { initializeAuth, inMemoryPersistence, getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -14,7 +14,17 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Services
-export const auth = getAuth(app);
+// Initialize Auth with inMemoryPersistence to avoid IndexedDB iframe restrictions
+export const auth = (() => {
+  try {
+    return initializeAuth(app, {
+      persistence: inMemoryPersistence
+    });
+  } catch (e) {
+    return getAuth(app);
+  }
+})();
+
 export const db = getFirestore(app, "ai-studio-chamberofsecrets-8f02e0ab-60e6-49f0-a7b1-88d5b081b197");
+
 

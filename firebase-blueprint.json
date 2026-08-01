@@ -1,0 +1,80 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A wizard or witch registered at Hogwarts",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "house": { "type": "string" },
+        "wand": { "type": "string" },
+        "bloodStatus": { "type": "string" },
+        "year": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["uid", "name", "house"]
+    },
+    "DiaryEntry": {
+      "title": "DiaryEntry",
+      "description": "An entry written onto the parchment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "text": { "type": "string" },
+        "reflection": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "quillColor": { "type": "string" },
+        "ambientSound": { "type": "string" },
+        "candleLit": { "type": "boolean" },
+        "drawingData": { "type": "string" }
+      },
+      "required": ["id", "userId", "text", "timestamp"]
+    },
+    "LoreScroll": {
+      "title": "LoreScroll",
+      "description": "Magical lore unlocked by writing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "entryCount": { "type": "number" },
+        "house": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "content"]
+    },
+    "TrackedSecret": {
+      "title": "TrackedSecret",
+      "description": "A specific dark secret detected and tracked",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "userId", "text", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Wizard profiles"
+    },
+    "/entries/{entryId}": {
+      "schema": "DiaryEntry",
+      "description": "Diary entries written by the wizard"
+    },
+    "/loreScrolls/{loreId}": {
+      "schema": "LoreScroll",
+      "description": "Unlocked secrets and lore scrolls"
+    },
+    "/trackedSecrets/{secretId}": {
+      "schema": "TrackedSecret",
+      "description": "Dark secrets extracted from writing"
+    }
+  }
+}

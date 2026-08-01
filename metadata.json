@@ -1,0 +1,6 @@
+{
+  "name": "Tom Riddle's Diary",
+  "description": "An immersive, Harry Potter-themed replica of Tom Riddle's enchanted diary. Share your deepest secrets with the memory of Tom Marvolo Riddle preserved in ink, featuring handwriting recognition and ambient candlelit aesthetics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

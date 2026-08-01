@@ -1,13 +1,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { auth, db } from "../lib/firebase";
-import { 
-  GoogleAuthProvider, 
-  signInWithPopup, 
-  setPersistence, 
-  browserLocalPersistence, 
-  inMemoryPersistence 
-} from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { Sparkles, Wand, User, AlertCircle, GraduationCap, Copy, Check, ExternalLink, Shield } from "lucide-react";
 import { audio } from "../utils/audio";
@@ -110,17 +104,6 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
     audio.playQuillScratch(200);
 
     try {
-      // Ensure persistence uses browser local or in-memory persistence to prevent IndexedDB closing/hidden errors in iframe preview
-      try {
-        await setPersistence(auth, browserLocalPersistence);
-      } catch (pErr) {
-        try {
-          await setPersistence(auth, inMemoryPersistence);
-        } catch (mErr) {
-          console.warn("Could not set auth persistence:", mErr);
-        }
-      }
-
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
 

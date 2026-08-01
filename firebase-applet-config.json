@@ -1,10 +1,12 @@
 {
-  "projectId": "chamber-of-secrets-71f18",
-  "appId": "1:292928292438:web:ec24314c07aaebe31f1df7",
-  "apiKey": "AIzaSyDl15IJzIJ7Kbgbt67hz2sfO6UIla7V2Ac",
-  "authDomain": "chamber-of-secrets-71f18.firebaseapp.com",
-  "firestoreDatabaseId": "(default)",
-  "storageBucket": "chamber-of-secrets-71f18.firebasestorage.app",
-  "messagingSenderId": "292928292438",
-  "measurementId": "G-9DFY0FV8S4"
+  "projectId": "gen-lang-client-0852391485",
+  "appId": "1:584164969432:web:e5a2812d1a7f20090480ad",
+  "apiKey": "AIzaSyBH-0VhsrTLz63krhuzXJW5cmrfYn6yd0w",
+  "authDomain": "gen-lang-client-0852391485.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-chamberofsecrets-8f02e0ab-60e6-49f0-a7b1-88d5b081b197",
+  "storageBucket": "gen-lang-client-0852391485.firebasestorage.app",
+  "messagingSenderId": "584164969432",
+  "measurementId": "",
+  "oAuthClientId": "584164969432-b4sp9j1tpubtr7im5hn6r6p65oiimkm9.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
 }

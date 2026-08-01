@@ -1,7 +1,13 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { auth, db } from "../lib/firebase";
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  setPersistence, 
+  browserLocalPersistence, 
+  inMemoryPersistence 
+} from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { Sparkles, Wand, User, AlertCircle, GraduationCap, Copy, Check, ExternalLink, Shield } from "lucide-react";
 import { audio } from "../utils/audio";
@@ -104,7 +110,20 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
     audio.playQuillScratch(200);
 
     try {
+      // Ensure persistence uses browser local or in-memory persistence to prevent IndexedDB closing/hidden errors in iframe preview
+      try {
+        await setPersistence(auth, browserLocalPersistence);
+      } catch (pErr) {
+        try {
+          await setPersistence(auth, inMemoryPersistence);
+        } catch (mErr) {
+          console.warn("Could not set auth persistence:", mErr);
+        }
+      }
+
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+
       const userCredential = await signInWithPopup(auth, provider);
       const user = userCredential.user;
 
@@ -142,6 +161,8 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
         setError("The login portal popup was blocked by your browser. Please allow popups for this page.");
       } else if (code === "auth/popup-closed-by-user") {
         setError("The authentication portal was closed before logging in.");
+      } else if (lowerMsg.includes("closing") || lowerMsg.includes("hidden") || lowerMsg.includes("database")) {
+        setError("Browser storage connection was reset. Please click 'ENTER VIA GOOGLE PORTAL' again to sign in, or click 'ENTER AS GUEST WIZARD'.");
       } else {
         setError(`[${code || 'auth/error'}] ${err.message || 'Google Sign-In encountered an error.'}`);
       }

@@ -145,7 +145,7 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
       } else if (code === "auth/popup-closed-by-user") {
         setError("The authentication portal was closed before logging in.");
       } else if (lowerMsg.includes("closing") || lowerMsg.includes("hidden") || lowerMsg.includes("database")) {
-        setError("Browser storage in this preview frame was restricted. Click 'Open in New Tab for Google Auth' below to log in directly in a full window, or 'Continue as Guest Wizard'.");
+        setError("Storage connection was briefly interrupted. Please click 'Enter via Google Portal' to retry.");
       } else {
         setError(`[${code || 'auth/error'}] ${err.message || 'Google Sign-In encountered an error.'}`);
       }
@@ -492,11 +492,11 @@ export default function HogwartsAuth({ onAuthSuccess }: HogwartsAuthProps) {
                 <div className="flex flex-col gap-2">
                   <button
                     type="button"
-                    onClick={() => window.open(window.location.href, "_blank")}
+                    onClick={handleGoogleSignIn}
                     className="w-full py-1.5 bg-amber-950/90 hover:bg-amber-900 text-amber-200 font-mono text-[10px] uppercase tracking-widest rounded border border-amber-700/60 transition-colors flex items-center justify-center gap-1.5 shadow"
                   >
-                    <ExternalLink className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Open in New Tab for Google Auth</span>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Retry via Google Portal</span>
                   </button>
 
                   <button
